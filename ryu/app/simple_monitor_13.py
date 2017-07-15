@@ -28,6 +28,7 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
         self.datapaths = {}
         self.pre_rx = {}
+        self.pre_tx = {}
         self.monitor_thread = hub.spawn(self._monitor)
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
@@ -48,6 +49,9 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
             for dp in self.datapaths.values():
                 self._request_stats(dp)
             hub.sleep(1)
+            self.logger.info("")
+            self.logger.info("")
+            self.logger.info("")
 
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
@@ -84,27 +88,33 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
     def _port_stats_reply_handler(self, ev):
 
         self.pre_rx.setdefault(ev.msg.datapath.id, {})
+        self.pre_tx.setdefault(ev.msg.datapath.id, {})
 
         body = ev.msg.body
         self.logger.info("=======PortStatsReply=======")
         self.logger.info('datapath         port     '
                          'rx-pkts  rx-bytes rx-error '
-                         'tx-pkts  tx-bytes tx-error bandwith')
+                         'tx-pkts  tx-bytes tx-error rx-bandwith tx-bandwith')
         self.logger.info('---------------- -------- '
                          '-------- -------- -------- '
                          '-------- -------- -------- '
-                         '--------')
+                         '-------- --------')
         for stat in sorted(body, key=attrgetter('port_no')):
 
             if stat.port_no not in self.pre_rx[ev.msg.datapath.id]:
-                self.pre_rx[ev.msg.datapath.id][stat.port_no] = 0
+                self.pre_rx[ev.msg.datapath.id][stat.port_no] = stat.rx_bytes
+            if stat.port_no not in self.pre_tx[ev.msg.datapath.id]:
+                self.pre_tx[ev.msg.datapath.id][stat.port_no] = stat.tx_bytes
 
-            self.logger.info('%016x %8x %8d %8d %8d %8d %8d %8d %8d',
+            self.logger.info('%016x %8x %8d %8d %8d %8d %8d %8d %8d %8d',
                              ev.msg.datapath.id, stat.port_no,
                              stat.rx_packets, stat.rx_bytes, stat.rx_errors,
                              stat.tx_packets, stat.tx_bytes, stat.tx_errors,
-                             stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no])
+                             (stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no]) * 8,
+                             (stat.tx_bytes - self.pre_tx[ev.msg.datapath.id][stat.port_no]) * 8
+            )
 
             self.pre_rx[ev.msg.datapath.id][stat.port_no] = stat.rx_bytes
+            self.pre_tx[ev.msg.datapath.id][stat.port_no] = stat.tx_bytes
 
-        self.logger.info("");
+        self.logger.info("")
