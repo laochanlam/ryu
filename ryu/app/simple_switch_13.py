@@ -110,6 +110,8 @@ class SimpleSwitch13(app_manager.RyuApp):
                 return
             else:
                 self.add_flow(datapath, 1, match, actions)
+        if out_port == ofproto.OFPP_FLOOD:
+            self.logger.info("FLOOD!!!")
         data = None
         if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
