@@ -28,7 +28,9 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
         super(SimpleMonitor13, self).__init__(*args, **kwargs)
         self.datapaths = {}
         self.pre_rx = {}
+        self.pre_rx_bandwidth = {}
         self.pre_tx = {}
+        self.pre_tx_bandwidth = {}
         self.monitor_thread = hub.spawn(self._monitor)
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
@@ -89,31 +91,40 @@ class SimpleMonitor13(simple_switch_13.SimpleSwitch13):
 
         self.pre_rx.setdefault(ev.msg.datapath.id, {})
         self.pre_tx.setdefault(ev.msg.datapath.id, {})
+        self.pre_rx_bandwidth.setdefault(ev.msg.datapath.id, {})
+        self.pre_tx_bandwidth.setdefault(ev.msg.datapath.id, {})
 
         body = ev.msg.body
         self.logger.info("=======PortStatsReply=======")
         self.logger.info('datapath         port     '
                          'rx-pkts  rx-bytes rx-error '
-                         'tx-pkts  tx-bytes tx-error rx-bandwith tx-bandwith')
+                         'tx-pkts  tx-bytes tx-error rx-bandwith tx-bandwith')      
         self.logger.info('---------------- -------- '
                          '-------- -------- -------- '
                          '-------- -------- -------- '
                          '-------- --------')
         for stat in sorted(body, key=attrgetter('port_no')):
 
+            # initialize
             if stat.port_no not in self.pre_rx[ev.msg.datapath.id]:
                 self.pre_rx[ev.msg.datapath.id][stat.port_no] = stat.rx_bytes
             if stat.port_no not in self.pre_tx[ev.msg.datapath.id]:
                 self.pre_tx[ev.msg.datapath.id][stat.port_no] = stat.tx_bytes
+            if stat.port_no not in self.pre_rx_bandwidth[ev.msg.datapath.id]:
+                self.pre_rx_bandwidth[ev.msg.datapath.id][stat.port_no] = (stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no]) * 8
+            if stat.port_no not in self.pre_tx_bandwidth[ev.msg.datapath.id]:
+                self.pre_tx_bandwidth[ev.msg.datapath.id][stat.port_no] = (stat.tx_bytes - self.pre_tx[ev.msg.datapath.id][stat.port_no]) * 8
 
             self.logger.info('%016x %8x %8d %8d %8d %8d %8d %8d %8d %8d',
                              ev.msg.datapath.id, stat.port_no,
                              stat.rx_packets, stat.rx_bytes, stat.rx_errors,
                              stat.tx_packets, stat.tx_bytes, stat.tx_errors,
-                             (stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no]) * 8,
-                             (stat.tx_bytes - self.pre_tx[ev.msg.datapath.id][stat.port_no]) * 8
+                             (self.pre_rx_bandwidth[ev.msg.datapath.id][stat.port_no] + (stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no]) * 8 ) / 2,
+                             (self.pre_tx_bandwidth[ev.msg.datapath.id][stat.port_no] + (stat.tx_bytes - self.pre_tx[ev.msg.datapath.id][stat.port_no]) * 8 ) / 2
             )
 
+            self.pre_rx_bandwidth[ev.msg.datapath.id][stat.port_no] = (stat.rx_bytes - self.pre_rx[ev.msg.datapath.id][stat.port_no]) * 8
+            self.pre_tx_bandwidth[ev.msg.datapath.id][stat.port_no] = (stat.tx_bytes - self.pre_tx[ev.msg.datapath.id][stat.port_no]) * 8
             self.pre_rx[ev.msg.datapath.id][stat.port_no] = stat.rx_bytes
             self.pre_tx[ev.msg.datapath.id][stat.port_no] = stat.tx_bytes
 

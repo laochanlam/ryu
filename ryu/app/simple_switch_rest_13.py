@@ -26,8 +26,8 @@ from ryu.app.wsgi import WSGIApplication
 from ryu.lib import dpid as dpid_lib
 
 simple_switch_instance_name = 'simple_switch_api_app'
-url = '/simpleswitch/mactable/{dpid}'
-
+# url = '/simpleswitch/mactable/{dpid}'
+url = '/linkbandwidth' + '/?' + 'dpid=/{dpid}'
 
 class SimpleSwitchRest13(simple_switch_13.SimpleSwitch13):
 
@@ -55,7 +55,7 @@ class SimpleSwitchController(ControllerBase):
         self.simple_switch_app = data[simple_switch_instance_name]
         # self.DEFAULT_WSGI_PORT = 9191
 
-    @route('simpleswitch', url, methods=['GET'],
+    @route('bandwidth', url, methods=['GET'],
            requirements={'dpid': dpid_lib.DPID_PATTERN})
     def list_mac_table(self, req, **kwargs):
 
